@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail, AlertCircle } from "lucide-react";
+import { auth, ApiError } from "@/lib/api";
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
@@ -12,21 +13,28 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: { preventDefault(): void }) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    await new Promise((r) => setTimeout(r, 800));
+    try {
+      const data = await auth.login(email, password);
 
-    // Demo credentials — replace with real API call to NestJS /auth/login
-    if (email === "admin@taraa.in" && password === "admin123") {
-      localStorage.setItem("taraa_admin_token", "demo_jwt_token");
+      if (data.user.role !== "admin" && data.user.role !== "super_admin") {
+        setError("Access denied. Admin accounts only.");
+        return;
+      }
       router.push("/admin");
-    } else {
-      setError("Invalid email or password.");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.statusCode === 401 ? "Invalid email or password." : err.message);
+      } else {
+        setError("Unable to reach server. Please try again.");
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

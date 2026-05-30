@@ -1,29 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard,
-  Package,
-  ShoppingCart,
-  Users,
-  Settings,
-  Tag,
-  BarChart3,
-  Shield,
-  LogOut,
-  X,
+  LayoutDashboard, Package, ShoppingCart, Users,
+  Settings, Tag, BarChart3, Shield, LogOut, X, Loader2,
 } from "lucide-react";
+import { useState } from "react";
+import { auth, getRefreshToken } from "@/lib/api";
 
 const nav = [
-  { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
-  { label: "Products", href: "/admin/products", icon: Package },
-  { label: "Orders", href: "/admin/orders", icon: ShoppingCart },
-  { label: "Customers", href: "/admin/customers", icon: Users },
+  { label: "Dashboard",  href: "/admin",            icon: LayoutDashboard },
+  { label: "Products",   href: "/admin/products",   icon: Package },
+  { label: "Orders",     href: "/admin/orders",     icon: ShoppingCart },
+  { label: "Customers",  href: "/admin/customers",  icon: Users },
   { label: "Categories", href: "/admin/categories", icon: Tag },
-  { label: "Analytics", href: "/admin/analytics", icon: BarChart3 },
-  { label: "Security", href: "/admin/security", icon: Shield },
-  { label: "Settings", href: "/admin/settings", icon: Settings },
+  { label: "Analytics",  href: "/admin/analytics",  icon: BarChart3 },
+  { label: "Security",   href: "/admin/security",   icon: Shield },
+  { label: "Settings",   href: "/admin/settings",   icon: Settings },
 ];
 
 interface Props {
@@ -33,20 +27,33 @@ interface Props {
 
 export default function AdminSidebar({ open, onClose }: Props) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [loggingOut, setLoggingOut] = useState(false);
 
-  const handleLogout = () => {
-    localStorage.removeItem("taraa_admin_token");
-    window.location.href = "/admin/login";
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      const refreshToken = getRefreshToken();
+      if (refreshToken) {
+        await auth.logout(refreshToken);
+      } else {
+        // no refresh token stored — just clear and redirect
+        const { clearTokens } = await import("@/lib/api");
+        clearTokens();
+      }
+    } catch {
+      // even if API call fails, clear local tokens
+      const { clearTokens } = await import("@/lib/api");
+      clearTokens();
+    } finally {
+      router.push("/admin/login");
+    }
   };
 
   return (
     <>
-      {/* Mobile overlay */}
       {open && (
-        <div
-          className="fixed inset-0 bg-black/50 z-20 lg:hidden"
-          onClick={onClose}
-        />
+        <div className="fixed inset-0 bg-black/50 z-20 lg:hidden" onClick={onClose} />
       )}
 
       <aside
@@ -78,10 +85,7 @@ export default function AdminSidebar({ open, onClose }: Props) {
                 href={href}
                 className={`
                   flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-                  ${active
-                    ? "bg-[#C9A84C] text-black"
-                    : "text-gray-300 hover:bg-white/10 hover:text-white"
-                  }
+                  ${active ? "bg-[#C9A84C] text-black" : "text-gray-300 hover:bg-white/10 hover:text-white"}
                 `}
               >
                 <Icon size={17} />
@@ -95,10 +99,11 @@ export default function AdminSidebar({ open, onClose }: Props) {
         <div className="px-3 py-4 border-t border-white/10">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+            disabled={loggingOut}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-60"
           >
-            <LogOut size={17} />
-            Logout
+            {loggingOut ? <Loader2 size={17} className="animate-spin" /> : <LogOut size={17} />}
+            {loggingOut ? "Logging out..." : "Logout"}
           </button>
         </div>
       </aside>

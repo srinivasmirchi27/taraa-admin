@@ -1,29 +1,63 @@
 "use client";
 
-import { useState } from "react";
-import { Save, Globe, Bell, Shield, Database, Zap, CheckCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Save, Globe, Bell, Shield, Database, Zap, CheckCircle, Loader2, User } from "lucide-react";
+import { users as usersApi, auth, getRefreshToken, ApiError } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
 export default function AdminSettingsPage() {
-  const [saved, setSaved] = useState(false);
-  const [store, setStore] = useState({
-    name: "Taraa Fashion Jewellery",
-    email: "support@taraa.in",
-    phone: "+91 98765 43210",
-    currency: "INR",
-    timezone: "Asia/Kolkata",
-    gst: "22ABCDE1234F1Z5",
-  });
+  const router = useRouter();
 
+  // Profile (from /users/me)
+  const [profile, setProfile] = useState({ name: "", phone: "", address: "" });
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [profileError, setProfileError] = useState("");
+
+  // Notifications (local-only, no API)
   const [notifications, setNotifications] = useState({
-    newOrder: true,
-    lowStock: true,
-    newCustomer: false,
-    paymentFailed: true,
+    newOrder: true, lowStock: true, newCustomer: false, paymentFailed: true,
   });
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+  // Health
+  const [apiUrl] = useState(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1");
+
+  useEffect(() => {
+    usersApi.me()
+      .then((u) => setProfile({ name: u.name, phone: u.phone ?? "", address: u.address ?? "" }))
+      .catch(() => {})
+      .finally(() => setProfileLoading(false));
+  }, []);
+
+  const saveProfile = async () => {
+    setProfileSaving(true);
+    setProfileError("");
+    try {
+      await usersApi.updateMe({
+        name: profile.name,
+        ...(profile.phone && { phone: profile.phone }),
+        ...(profile.address && { address: profile.address }),
+      });
+      setProfileSaved(true);
+      setTimeout(() => setProfileSaved(false), 2500);
+    } catch (e) {
+      setProfileError(e instanceof ApiError ? e.message : "Save failed");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleLogoutAll = async () => {
+    if (!confirm("This will sign you out from all devices. Continue?")) return;
+    try {
+      await auth.logoutAll();
+      router.push("/admin/login");
+    } catch {
+      const refreshToken = getRefreshToken();
+      if (refreshToken) await auth.logout(refreshToken).catch(() => {});
+      router.push("/admin/login");
+    }
   };
 
   return (
@@ -31,40 +65,78 @@ export default function AdminSettingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Manage your store configuration</p>
+          <p className="text-sm text-gray-500 mt-0.5">Manage your account and store configuration</p>
         </div>
-        <button
-          onClick={handleSave}
-          className="flex items-center gap-2 px-4 py-2 bg-[#C9A84C] hover:bg-[#b8963f] text-black text-sm font-semibold rounded-lg transition-colors"
-        >
-          {saved ? <CheckCircle size={15} /> : <Save size={15} />}
-          {saved ? "Saved!" : "Save Changes"}
-        </button>
       </div>
 
-      {/* Store Info */}
+      {/* Profile */}
+      <Section icon={User} title="My Profile">
+        {profileLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 size={20} className="animate-spin text-[#C9A84C]" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {profileError && (
+              <div className="bg-red-50 border border-red-200 text-red-600 rounded-lg px-4 py-3 text-sm">{profileError}</div>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Display Name">
+                <input
+                  value={profile.name}
+                  onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                  className="input"
+                />
+              </Field>
+              <Field label="Phone Number">
+                <input
+                  value={profile.phone}
+                  onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                  placeholder="+91 98765 43210"
+                  className="input"
+                />
+              </Field>
+            </div>
+            <Field label="Address">
+              <input
+                value={profile.address}
+                onChange={(e) => setProfile({ ...profile, address: e.target.value })}
+                placeholder="123 MG Road, Bangalore"
+                className="input"
+              />
+            </Field>
+            <button
+              onClick={saveProfile}
+              disabled={profileSaving}
+              className="flex items-center gap-2 px-4 py-2 bg-[#C9A84C] hover:bg-[#b8963f] text-black text-sm font-semibold rounded-lg disabled:opacity-60 transition-colors"
+            >
+              {profileSaving
+                ? <><Loader2 size={15} className="animate-spin" /> Saving...</>
+                : profileSaved
+                ? <><CheckCircle size={15} /> Saved!</>
+                : <><Save size={15} /> Save Profile</>}
+            </button>
+          </div>
+        )}
+      </Section>
+
+      {/* Store Info (local only) */}
       <Section icon={Globe} title="Store Information">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Store Name">
-            <input value={store.name} onChange={(e) => setStore({ ...store, name: e.target.value })} className="input" />
+            <input defaultValue="Taraa Fashion Jewellery" className="input" />
           </Field>
           <Field label="Support Email">
-            <input value={store.email} onChange={(e) => setStore({ ...store, email: e.target.value })} className="input" />
-          </Field>
-          <Field label="Phone">
-            <input value={store.phone} onChange={(e) => setStore({ ...store, phone: e.target.value })} className="input" />
-          </Field>
-          <Field label="GST Number">
-            <input value={store.gst} onChange={(e) => setStore({ ...store, gst: e.target.value })} className="input" />
+            <input defaultValue="support@taraa.in" className="input" />
           </Field>
           <Field label="Currency">
-            <select value={store.currency} onChange={(e) => setStore({ ...store, currency: e.target.value })} className="input">
+            <select defaultValue="INR" className="input">
               <option value="INR">INR — Indian Rupee (₹)</option>
               <option value="USD">USD — US Dollar ($)</option>
             </select>
           </Field>
           <Field label="Timezone">
-            <select value={store.timezone} onChange={(e) => setStore({ ...store, timezone: e.target.value })} className="input">
+            <select defaultValue="Asia/Kolkata" className="input">
               <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
               <option value="UTC">UTC</option>
             </select>
@@ -72,14 +144,14 @@ export default function AdminSettingsPage() {
         </div>
       </Section>
 
-      {/* Notifications */}
+      {/* Notifications (local only) */}
       <Section icon={Bell} title="Notifications">
         <div className="space-y-3">
           {[
-            { key: "newOrder", label: "New Order", desc: "Notify when a new order is placed" },
-            { key: "lowStock", label: "Low Stock Alert", desc: "Notify when product stock goes below 5 units" },
-            { key: "newCustomer", label: "New Customer", desc: "Notify when a new customer registers" },
-            { key: "paymentFailed", label: "Payment Failed", desc: "Notify on failed payment attempts" },
+            { key: "newOrder",      label: "New Order",       desc: "Notify when a new order is placed" },
+            { key: "lowStock",      label: "Low Stock Alert", desc: "Notify when product stock goes below 5 units" },
+            { key: "newCustomer",   label: "New Customer",    desc: "Notify when a new customer registers" },
+            { key: "paymentFailed", label: "Payment Failed",  desc: "Notify on failed payment attempts" },
           ].map(({ key, label, desc }) => (
             <label key={key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
               <div>
@@ -103,77 +175,66 @@ export default function AdminSettingsPage() {
         </div>
       </Section>
 
-      {/* Security */}
-      <Section icon={Shield} title="Security">
+      {/* Session Management */}
+      <Section icon={Shield} title="Session Management">
         <div className="space-y-3">
           <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3">
             <CheckCircle size={16} className="text-green-600 shrink-0" />
             <div>
               <p className="text-sm font-medium text-green-800">JWT Authentication Active</p>
-              <p className="text-xs text-green-600">Tokens expire in 24 hours. Refresh tokens valid for 7 days.</p>
+              <p className="text-xs text-green-600">Access tokens expire in 15 min. Refresh tokens valid for 30 days.</p>
             </div>
           </div>
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-3">
-            <Shield size={16} className="text-blue-600 shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-blue-800">RBAC Enabled — Role: Super Admin</p>
-              <p className="text-xs text-blue-600">You have full access to all admin resources.</p>
-            </div>
-          </div>
-          <Field label="Change Admin Password">
-            <input type="password" placeholder="New password (min 8 chars)" className="input" />
-          </Field>
+          <button
+            onClick={handleLogoutAll}
+            className="w-full flex items-center justify-center gap-2 py-2.5 border border-red-200 text-red-500 hover:bg-red-50 rounded-lg text-sm font-medium transition-colors"
+          >
+            Logout from All Devices
+          </button>
         </div>
       </Section>
 
-      {/* API / Backend */}
+      {/* API Config (read-only info) */}
       <Section icon={Database} title="API Configuration">
-        <div className="space-y-4">
+        <div className="space-y-3">
           <Field label="Backend API URL">
-            <input defaultValue="http://localhost:3001/api" className="input font-mono text-xs" />
-          </Field>
-          <Field label="API Version">
-            <input defaultValue="v1" className="input" />
+            <input value={apiUrl} readOnly className="input font-mono text-xs bg-gray-50 cursor-default" />
           </Field>
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-            <p className="font-medium mb-1">NestJS Backend Status</p>
+            <p className="font-medium mb-1">NestJS Backend</p>
             <p className="text-xs text-amber-700">
-              Connect to <code className="bg-amber-100 px-1 rounded">http://localhost:3001</code> — run{" "}
-              <code className="bg-amber-100 px-1 rounded">cd backend && npm run start:dev</code> to start.
+              Swagger docs available at{" "}
+              <a
+                href="http://localhost:3001/api/docs"
+                target="_blank"
+                rel="noreferrer"
+                className="underline"
+              >
+                http://localhost:3001/api/docs
+              </a>
             </p>
           </div>
         </div>
       </Section>
 
-      {/* Rate Limiting */}
-      <Section icon={Zap} title="Rate Limiting & Performance">
+      {/* Rate Limiting (informational) */}
+      <Section icon={Zap} title="Rate Limiting">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Max Requests / Minute">
-            <input type="number" defaultValue={60} className="input" />
-          </Field>
-          <Field label="Rate Limit Strategy">
-            <select className="input">
-              <option>Sliding Window</option>
-              <option>Fixed Window</option>
-              <option>Token Bucket</option>
-              <option>Leaky Bucket</option>
-            </select>
-          </Field>
+          <div className="p-3 bg-gray-50 rounded-lg">
+            <p className="text-xs text-gray-500 mb-1">Default Limit</p>
+            <p className="text-sm font-semibold text-gray-800">60 req / 60s per IP</p>
+          </div>
+          <div className="p-3 bg-gray-50 rounded-lg">
+            <p className="text-xs text-gray-500 mb-1">Production Limit</p>
+            <p className="text-sm font-semibold text-gray-800">30 req / 60s per IP</p>
+          </div>
         </div>
-        <p className="text-xs text-gray-400 mt-2">These settings are applied in the NestJS backend via ThrottlerModule.</p>
+        <p className="text-xs text-gray-400 mt-3">Applied via NestJS ThrottlerModule. Configured in the backend.</p>
       </Section>
 
       <style>{`
-        .input {
-          width: 100%;
-          padding: 0.5rem 0.75rem;
-          border: 1px solid #e5e7eb;
-          border-radius: 0.5rem;
-          font-size: 0.875rem;
-          outline: none;
-          background: white;
-        }
-        .input:focus { border-color: #C9A84C; box-shadow: 0 0 0 3px rgba(201,168,76,0.15); }
+        .input { width:100%; padding:0.5rem 0.75rem; border:1px solid #e5e7eb; border-radius:0.5rem; font-size:0.875rem; outline:none; background:white; }
+        .input:focus { border-color:#C9A84C; box-shadow:0 0 0 3px rgba(201,168,76,0.15); }
       `}</style>
     </div>
   );
