@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+:root {
+  --gold: #C9A84C;
+  --gold-dark: #b8963f;
+  --gold-light: #e8c96a;
+  --black: #1a1a1a;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: #1a1a1a;
+}
