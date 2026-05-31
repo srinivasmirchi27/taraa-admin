@@ -100,6 +100,38 @@ export async function request<T>(
   return json.data as T;
 }
 
+export async function formRequest<T>(path: string, form: FormData): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: "POST",
+    headers,
+    body: form,
+  });
+
+  const json = await res.json();
+  if (!json.success) throw new ApiError(res.status, json.message ?? "Request failed");
+  return json.data as T;
+}
+
+export async function patchFormRequest<T>(path: string, form: FormData): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: "PATCH",
+    headers,
+    body: form,
+  });
+
+  const json = await res.json();
+  if (!json.success) throw new ApiError(res.status, json.message ?? "Request failed");
+  return json.data as T;
+}
+
 export async function uploadFile(
   path: string,
   file: File,

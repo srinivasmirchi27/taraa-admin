@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Search, Eye, Download,
   CheckCircle, XCircle, Clock, Truck, Package, Loader2,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, RefreshCw, IndianRupee,
 } from "lucide-react";
-import { orders as ordersApi, ApiError } from "@/lib/api";
+import { orders as ordersApi, payments as paymentsApi, ApiError } from "@/lib/api";
 import type { Order, OrderStatus } from "@/lib/api";
 
 type StatusFilter = "all" | OrderStatus;
@@ -30,6 +30,12 @@ export default function AdminOrdersPage() {
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<Order | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  // Refund state
+  const [refunding, setRefunding] = useState(false);
+  const [showRefundInput, setShowRefundInput] = useState(false);
+  const [refundAmount, setRefundAmount] = useState("");
+  const [refundSuccess, setRefundSuccess] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,6 +79,56 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const handleRefund = async () => {
+    if (!selected?.razorpayPaymentId) return;
+    setRefunding(true);
+    try {
+      const amount = refundAmount ? Number(refundAmount) : undefined;
+      await paymentsApi.refund(selected.razorpayPaymentId, amount);
+      setRefundSuccess(true);
+      setShowRefundInput(false);
+      setRefundAmount("");
+    } catch (e) {
+      alert(e instanceof ApiError ? e.message : "Refund failed");
+    } finally {
+      setRefunding(false);
+    }
+  };
+
+  const exportCsv = () => {
+    const header = ["Order No", "Customer", "Phone", "City", "State", "Pincode", "Amount", "Status", "Payment", "Paid", "Date"];
+    const rows = items.map((o) => [
+      o.orderNumber,
+      o.shippingAddress.name,
+      o.shippingAddress.phone,
+      o.shippingAddress.city,
+      o.shippingAddress.state,
+      o.shippingAddress.pincode,
+      o.total,
+      o.status,
+      o.paymentMethod,
+      o.isPaid ? "Yes" : "No",
+      new Date(o.createdAt).toLocaleDateString("en-IN"),
+    ]);
+    const csv = [header, ...rows]
+      .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `orders-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const openDrawer = (o: Order) => {
+    setSelected(o);
+    setShowRefundInput(false);
+    setRefundAmount("");
+    setRefundSuccess(false);
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -80,7 +136,11 @@ export default function AdminOrdersPage() {
           <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
           <p className="text-sm text-gray-500">{total} total orders</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
+        <button
+          onClick={exportCsv}
+          disabled={items.length === 0}
+          className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-40"
+        >
           <Download size={15} /> Export CSV
         </button>
       </div>
@@ -147,7 +207,10 @@ export default function AdminOrdersPage() {
                       <td className="px-5 py-3 text-gray-400 text-xs hidden sm:table-cell">
                         {new Date(o.createdAt).toLocaleDateString("en-IN")}
                       </td>
-                      <td className="px-5 py-3 font-medium text-gray-800">₹{o.total.toLocaleString()}</td>
+                      <td className="px-5 py-3">
+                        <p className="font-medium text-gray-800">₹{o.total.toLocaleString()}</p>
+                        <p className="text-xs text-gray-400">{o.isPaid ? "Paid" : "Unpaid"} · {o.paymentMethod}</p>
+                      </td>
                       <td className="px-5 py-3">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${s.cls}`}>
                           <SIcon size={11} />{s.label}
@@ -155,7 +218,7 @@ export default function AdminOrdersPage() {
                       </td>
                       <td className="px-5 py-3 text-right">
                         <button
-                          onClick={() => setSelected(o)}
+                          onClick={() => openDrawer(o)}
                           className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
                         >
                           <Eye size={15} />
@@ -210,6 +273,7 @@ export default function AdminOrdersPage() {
               <InfoRow label="Phone" value={selected.shippingAddress.phone} />
               <InfoRow label="Address" value={`${selected.shippingAddress.line1}, ${selected.shippingAddress.city}, ${selected.shippingAddress.state} - ${selected.shippingAddress.pincode}`} />
               <InfoRow label="Payment" value={`${selected.paymentMethod} · ${selected.isPaid ? "Paid" : "Unpaid"}`} />
+              {selected.paidAt && <InfoRow label="Paid At" value={new Date(selected.paidAt).toLocaleString("en-IN")} />}
               <InfoRow label="Total" value={`₹${selected.total.toLocaleString()}`} />
               <InfoRow label="Date" value={new Date(selected.createdAt).toLocaleString("en-IN")} />
 
@@ -221,7 +285,7 @@ export default function AdminOrdersPage() {
                       {item.image && <img src={item.image} alt={item.name} className="w-10 h-10 rounded object-cover" />}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
-                        <p className="text-xs text-gray-500">Qty: {item.quantity} · ₹{item.price}</p>
+                        <p className="text-xs text-gray-500">Qty: {item.quantity} · ₹{item.price.toLocaleString()}</p>
                       </div>
                     </div>
                   ))}
@@ -229,7 +293,7 @@ export default function AdminOrdersPage() {
               </div>
 
               <div>
-                <p className="text-xs text-gray-500 mb-1">Status</p>
+                <p className="text-xs text-gray-500 mb-1">Current Status</p>
                 {(() => {
                   const s = statusConfig[selected.status];
                   const SIcon = s.icon;
@@ -241,6 +305,7 @@ export default function AdminOrdersPage() {
                 })()}
               </div>
 
+              {/* Status update */}
               <div className="pt-4 border-t border-gray-100">
                 <p className="text-sm font-medium text-gray-700 mb-3">Update Status</p>
                 <div className="grid grid-cols-2 gap-2">
@@ -256,6 +321,57 @@ export default function AdminOrdersPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Refund section — only for paid online orders */}
+              {selected.isPaid && selected.paymentMethod === "online" && selected.razorpayPaymentId && (
+                <div className="pt-4 border-t border-gray-100">
+                  <p className="text-sm font-medium text-gray-700 mb-3">Refund</p>
+                  {refundSuccess ? (
+                    <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 rounded-xl p-3">
+                      <CheckCircle size={16} /> Refund initiated successfully
+                    </div>
+                  ) : showRefundInput ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
+                        <IndianRupee size={14} className="text-gray-400" />
+                        <input
+                          type="number"
+                          value={refundAmount}
+                          onChange={(e) => setRefundAmount(e.target.value)}
+                          placeholder={`Leave empty for full refund (₹${selected.total})`}
+                          className="bg-transparent text-sm outline-none w-full text-gray-700"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setShowRefundInput(false)}
+                          className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleRefund}
+                          disabled={refunding}
+                          className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium disabled:opacity-60 flex items-center justify-center gap-2"
+                        >
+                          {refunding && <Loader2 size={13} className="animate-spin" />}
+                          {refunding ? "Processing…" : "Confirm Refund"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowRefundInput(true)}
+                      className="w-full py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <RefreshCw size={14} /> Initiate Refund
+                    </button>
+                  )}
+                  <p className="text-xs text-gray-400 mt-2">
+                    Payment ID: {selected.razorpayPaymentId}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>

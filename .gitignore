@@ -1,8 +1,11 @@
 .next/
 node_modules/
-.env
-.env.local
 out/
 dist/
 *.log
 .DS_Store
+
+# env files — commit the per-environment files, ignore local secret overrides
+.env
+.env.local
+.env.*.local

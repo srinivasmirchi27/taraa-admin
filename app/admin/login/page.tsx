@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail, AlertCircle } from "lucide-react";
-import { auth, ApiError } from "@/lib/api";
+import { ApiError } from "@/lib/api";
+import { useAuthStore } from "@/lib/store";
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
@@ -12,6 +13,7 @@ export default function AdminLoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const login = useAuthStore((s) => s.login);
 
   const handleLogin = async (e: { preventDefault(): void }) => {
     e.preventDefault();
@@ -19,9 +21,9 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     try {
-      const data = await auth.login(email, password);
+      const user = await login(email, password);
 
-      if (data.user.role !== "admin" && data.user.role !== "super_admin") {
+      if (user.role !== "admin" && user.role !== "super_admin") {
         setError("Access denied. Admin accounts only.");
         return;
       }

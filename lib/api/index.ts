@@ -1,4 +1,6 @@
 export * from "./types";
+export { banners } from "./banners";
+export { support } from "./support";
 export { ApiError, getToken, setTokens, clearTokens, getRefreshToken } from "./client";
 export { auth } from "./auth";
 export { users } from "./users";
@@ -9,5 +11,6 @@ export { payments } from "./payments";
 export { uploads } from "./uploads";
 export { health } from "./health";
 export type { ProductFilters, CreateProductDto, UpdateProductDto } from "./products";
+export type { BulkProductInput, BulkUploadResult } from "./types";
 export type { CreateOrderDto } from "./orders";
 export type { InitiatePaymentDto, VerifyPaymentDto, VerifyPaymentResponse } from "./payments";

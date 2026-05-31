@@ -1,5 +1,5 @@
-import { request } from "./client";
-import type { Product, PaginatedResponse } from "./types";
+import { request, formRequest } from "./client";
+import type { Product, PaginatedResponse, BulkProductInput, BulkUploadResult } from "./types";
 
 export interface ProductFilters {
   page?: number;
@@ -7,6 +7,9 @@ export interface ProductFilters {
   category?: string;
   search?: string;
   inStock?: boolean;
+  isNew?: boolean;
+  isBestSeller?: boolean;
+  sort?: "price_asc" | "price_desc" | "popular" | "newest";
 }
 
 export type CreateProductDto = Omit<Product, "_id" | "createdAt">;
@@ -39,4 +42,19 @@ export const products = {
 
   delete: (id: string) =>
     request<null>(`/products/${id}`, { method: "DELETE" }),
+
+  bulkUpload: (productList: BulkProductInput[], images: (File | null)[]) => {
+    const form = new FormData();
+    form.append("products", JSON.stringify(productList));
+    images.forEach((file, i) => {
+      if (file) form.append(`images[${i}]`, file);
+    });
+    return formRequest<BulkUploadResult>("/products/bulk", form);
+  },
+
+  appendImages: (id: string, files: File[]) => {
+    const form = new FormData();
+    files.forEach((f) => form.append("images", f));
+    return formRequest<Product>(`/products/${id}/images`, form);
+  },
 };

@@ -4,13 +4,20 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Search, Mail, Phone, MapPin, ShoppingBag,
   Users, UserCheck, UserX, Loader2, ChevronLeft, ChevronRight,
+  Trash2, Shield, ShieldCheck,
 } from "lucide-react";
 import { users as usersApi, ApiError } from "@/lib/api";
-import type { User } from "@/lib/api";
+import type { User, UserRole } from "@/lib/api";
+import { useAuthStore } from "@/lib/store";
 
 const PAGE_SIZE = 20;
 
+const ROLES: UserRole[] = ["customer", "admin", "super_admin"];
+
 export default function AdminCustomersPage() {
+  const currentUser = useAuthStore((s) => s.user);
+  const isSuperAdmin = currentUser?.role === "super_admin";
+
   const [items, setItems] = useState<User[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -18,6 +25,10 @@ export default function AdminCustomersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<User | null>(null);
+
+  const [changingRole, setChangingRole] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -46,6 +57,41 @@ export default function AdminCustomersPage() {
       )
     : items;
 
+  const handleRoleChange = async (role: UserRole) => {
+    if (!selected) return;
+    setChangingRole(true);
+    try {
+      const updated = await usersApi.updateRole(selected._id, role);
+      setItems((prev) => prev.map((u) => (u._id === selected._id ? updated : u)));
+      setSelected(updated);
+    } catch (e) {
+      alert(e instanceof ApiError ? e.message : "Role update failed");
+    } finally {
+      setChangingRole(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selected) return;
+    setDeleting(true);
+    try {
+      await usersApi.delete(selected._id);
+      setItems((prev) => prev.filter((u) => u._id !== selected._id));
+      setTotal((t) => t - 1);
+      setSelected(null);
+      setDeleteConfirm(false);
+    } catch (e) {
+      alert(e instanceof ApiError ? e.message : "Delete failed");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const openDrawer = (u: User) => {
+    setSelected(u);
+    setDeleteConfirm(false);
+  };
+
   return (
     <div className="space-y-5">
       <div>
@@ -55,8 +101,8 @@ export default function AdminCustomersPage() {
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard icon={Users}     label="Total Customers"  value={String(total)}       bg="bg-blue-50"   ic="text-blue-600" />
-        <StatCard icon={UserCheck} label="Active This Page" value={String(activeCount)} bg="bg-green-50"  ic="text-green-600" />
+        <StatCard icon={Users}      label="Total Customers"  value={String(total)}       bg="bg-blue-50"   ic="text-blue-600" />
+        <StatCard icon={UserCheck}  label="Active This Page" value={String(activeCount)} bg="bg-green-50"  ic="text-green-600" />
         <StatCard icon={ShoppingBag} label="Page"           value={`${page} / ${Math.max(totalPages, 1)}`} bg="bg-amber-50" ic="text-amber-600" />
       </div>
 
@@ -115,7 +161,11 @@ export default function AdminCustomersPage() {
                       </span>
                     </td>
                     <td className="px-5 py-3">
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize">
+                      <span className={`text-xs px-2 py-0.5 rounded-full capitalize font-medium ${
+                        u.role === "super_admin" ? "bg-purple-100 text-purple-700" :
+                        u.role === "admin"       ? "bg-blue-100 text-blue-700" :
+                                                   "bg-gray-100 text-gray-600"
+                      }`}>
                         {u.role.replace("_", " ")}
                       </span>
                     </td>
@@ -132,7 +182,7 @@ export default function AdminCustomersPage() {
                     </td>
                     <td className="px-5 py-3 text-right">
                       <button
-                        onClick={() => setSelected(u)}
+                        onClick={() => openDrawer(u)}
                         className="text-xs text-[#C9A84C] hover:underline font-medium"
                       >
                         View
@@ -180,14 +230,22 @@ export default function AdminCustomersPage() {
               <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
             </div>
             <div className="p-6 space-y-5">
+              {/* Avatar */}
               <div className="text-center">
                 <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-orange-400 flex items-center justify-center text-white text-2xl font-bold mx-auto mb-3">
                   {selected.name.charAt(0).toUpperCase()}
                 </div>
                 <h3 className="text-lg font-semibold text-gray-800">{selected.name}</h3>
-                <p className="text-sm text-gray-500 capitalize">{selected.role.replace("_", " ")}</p>
+                <span className={`text-xs px-2 py-0.5 rounded-full capitalize font-medium ${
+                  selected.role === "super_admin" ? "bg-purple-100 text-purple-700" :
+                  selected.role === "admin"       ? "bg-blue-100 text-blue-700" :
+                                                     "bg-gray-100 text-gray-600"
+                }`}>
+                  {selected.role.replace("_", " ")}
+                </span>
               </div>
 
+              {/* Contact */}
               <div className="space-y-3">
                 <div className="flex items-center gap-3 text-sm text-gray-600">
                   <Mail size={15} className="text-gray-400 shrink-0" />
@@ -207,11 +265,83 @@ export default function AdminCustomersPage() {
                 )}
               </div>
 
+              {/* Account info */}
               <div className="pt-4 border-t border-gray-100 space-y-2">
-                <InfoRow label="Joined" value={new Date(selected.createdAt).toLocaleDateString("en-IN")} />
+                <InfoRow label="Joined"         value={new Date(selected.createdAt).toLocaleDateString("en-IN")} />
                 <InfoRow label="Phone Verified" value={selected.phoneVerified ? "Yes" : "No"} />
                 <InfoRow label="Account Status" value={selected.isActive ? "Active" : "Inactive"} />
               </div>
+
+              {/* Role management — super_admin only */}
+              {isSuperAdmin && (
+                <div className="pt-4 border-t border-gray-100">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Shield size={14} className="text-purple-500" />
+                    <p className="text-sm font-medium text-gray-700">Role Management</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {ROLES.map((role) => (
+                      <button
+                        key={role}
+                        disabled={changingRole || selected.role === role}
+                        onClick={() => handleRoleChange(role)}
+                        className={`py-2 px-1 rounded-lg text-xs font-medium border transition-colors capitalize disabled:opacity-40 ${
+                          selected.role === role
+                            ? role === "super_admin" ? "bg-purple-100 text-purple-700 border-purple-200"
+                            : role === "admin"       ? "bg-blue-100 text-blue-700 border-blue-200"
+                                                     : "bg-gray-100 text-gray-600 border-gray-200"
+                            : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                        }`}
+                      >
+                        {changingRole
+                          ? <Loader2 size={13} className="animate-spin mx-auto" />
+                          : role.replace("_", " ")}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-2 text-xs text-gray-400">
+                    <ShieldCheck size={12} />
+                    <span>Currently: <span className="font-medium capitalize">{selected.role.replace("_", " ")}</span></span>
+                  </div>
+                </div>
+              )}
+
+              {/* Delete user — super_admin only */}
+              {isSuperAdmin && (
+                <div className="pt-4 border-t border-gray-100">
+                  {deleteConfirm ? (
+                    <div className="space-y-3">
+                      <div className="bg-red-50 rounded-xl p-3 text-center">
+                        <p className="text-sm font-semibold text-red-700 mb-1">Permanently delete?</p>
+                        <p className="text-xs text-red-500">This cannot be undone. All data for <span className="font-medium">{selected.name}</span> will be removed.</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setDeleteConfirm(false)}
+                          className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleDelete}
+                          disabled={deleting}
+                          className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-semibold disabled:opacity-60 flex items-center justify-center gap-2"
+                        >
+                          {deleting && <Loader2 size={13} className="animate-spin" />}
+                          {deleting ? "Deleting…" : "Delete"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setDeleteConfirm(true)}
+                      className="w-full py-2.5 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Trash2 size={14} /> Delete User
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
