@@ -1,6 +1,22 @@
 import { request, formRequest } from "./client";
 import type { Product, PaginatedResponse, BulkProductInput, BulkUploadResult } from "./types";
 
+const STRIP_KEYS = new Set(["_id", "id", "createdAt", "updatedAt", "__v", "cloudinaryPublicId"]);
+
+function toFormData(data: Record<string, unknown>): FormData {
+  const form = new FormData();
+  Object.entries(data).forEach(([k, v]) => {
+    if (STRIP_KEYS.has(k)) return;
+    if (v === undefined || v === null) return;
+    if (Array.isArray(v)) {
+      v.forEach((item) => form.append(k, String(item)));
+    } else {
+      form.append(k, String(v));
+    }
+  });
+  return form;
+}
+
 export interface ProductFilters {
   page?: number;
   limit?: number;
@@ -35,10 +51,14 @@ export const products = {
     request<Product>(`/products/${id}`, { auth: false }),
 
   create: (data: CreateProductDto) =>
-    request<Product>("/products", { method: "POST", body: data }),
+    formRequest<Product>("/products", toFormData(data as Record<string, unknown>)),
 
-  update: (id: string, data: UpdateProductDto) =>
-    request<Product>(`/products/${id}`, { method: "PATCH", body: data }),
+  update: (id: string, data: UpdateProductDto) => {
+    const clean = Object.fromEntries(
+      Object.entries(data as Record<string, unknown>).filter(([k]) => !STRIP_KEYS.has(k))
+    );
+    return request<Product>(`/products/${id}`, { method: "PATCH", body: clean });
+  },
 
   delete: (id: string) =>
     request<null>(`/products/${id}`, { method: "DELETE" }),
