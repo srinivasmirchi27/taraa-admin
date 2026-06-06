@@ -494,7 +494,13 @@ export default function AdminProductsPage() {
                 </Field>
                 <Field label="Price (₹)">
                   <input type="number" value={editItem.price}
-                    onChange={(e) => setEditItem({ ...editItem, price: +e.target.value })}
+                    onChange={(e) => {
+                      const price = +e.target.value;
+                      const discount = editItem.originalPrice > 0 && price <= editItem.originalPrice
+                        ? Math.round(((editItem.originalPrice - price) / editItem.originalPrice) * 100)
+                        : 0;
+                      setEditItem({ ...editItem, price, discount });
+                    }}
                     className="input-field" />
                 </Field>
               </div>
@@ -509,13 +515,18 @@ export default function AdminProductsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Original Price (₹)">
                   <input type="number" value={editItem.originalPrice}
-                    onChange={(e) => setEditItem({ ...editItem, originalPrice: +e.target.value })}
+                    onChange={(e) => {
+                      const originalPrice = +e.target.value;
+                      const discount = originalPrice > 0 && editItem.price <= originalPrice
+                        ? Math.round(((originalPrice - editItem.price) / originalPrice) * 100)
+                        : 0;
+                      setEditItem({ ...editItem, originalPrice, discount });
+                    }}
                     className="input-field" />
                 </Field>
-                <Field label="Discount (%)">
-                  <input type="number" value={editItem.discount}
-                    onChange={(e) => setEditItem({ ...editItem, discount: +e.target.value })}
-                    className="input-field" />
+                <Field label="Discount (% — auto)">
+                  <input type="number" value={editItem.discount} readOnly
+                    className="input-field bg-gray-50 text-gray-500 cursor-not-allowed" />
                 </Field>
               </div>
               <Field label="Product Image">
