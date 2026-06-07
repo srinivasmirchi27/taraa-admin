@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import NextImage from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Package, ShoppingCart, Users,
@@ -62,9 +63,12 @@ export default function AdminSidebar() {
         `}
       >
         <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
-          <div>
-            <span className="text-xl font-bold text-[#C9A84C]">TARAA</span>
-            <p className="text-xs text-gray-400 mt-0.5">Admin Panel</p>
+          <div className="flex items-center gap-2.5">
+            <NextImage src="/taraa-logo.jpg" alt="Taraa Jewels" width={36} height={36} className="rounded-lg" />
+            <div>
+              <span className="text-xl font-bold text-[#C9A84C]">TARAA</span>
+              <p className="text-xs text-gray-400 mt-0.5">Admin Panel</p>
+            </div>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
