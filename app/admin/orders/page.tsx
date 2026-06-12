@@ -209,7 +209,7 @@ export default function AdminOrdersPage() {
                       </td>
                       <td className="px-5 py-3">
                         <p className="font-medium text-gray-800">₹{o.total.toLocaleString()}</p>
-                        <p className="text-xs text-gray-400">{o.isPaid ? "Paid" : "Unpaid"} · {o.paymentMethod}</p>
+                        <p className="text-xs text-gray-400">{o.isPaid ? "Paid" : "Unpaid"} · {o.paymentMethod === "RAZORPAY" ? "Online" : o.paymentMethod}</p>
                       </td>
                       <td className="px-5 py-3">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${s.cls}`}>
@@ -272,7 +272,7 @@ export default function AdminOrdersPage() {
               <InfoRow label="Customer" value={selected.shippingAddress.name} />
               <InfoRow label="Phone" value={selected.shippingAddress.phone} />
               <InfoRow label="Address" value={`${selected.shippingAddress.line1}, ${selected.shippingAddress.city}, ${selected.shippingAddress.state} - ${selected.shippingAddress.pincode}`} />
-              <InfoRow label="Payment" value={`${selected.paymentMethod} · ${selected.isPaid ? "Paid" : "Unpaid"}`} />
+              <InfoRow label="Payment" value={`${selected.paymentMethod === "RAZORPAY" ? "Online" : selected.paymentMethod} · ${selected.isPaid ? "Paid" : "Unpaid"}`} />
               {selected.paidAt && <InfoRow label="Paid At" value={new Date(selected.paidAt).toLocaleString("en-IN")} />}
               <InfoRow label="Total" value={`₹${selected.total.toLocaleString()}`} />
               <InfoRow label="Date" value={new Date(selected.createdAt).toLocaleString("en-IN")} />
@@ -322,8 +322,8 @@ export default function AdminOrdersPage() {
                 </div>
               </div>
 
-              {/* Refund section — only for paid online orders */}
-              {selected.isPaid && selected.paymentMethod === "online" && selected.razorpayPaymentId && (
+              {/* Refund section — only for paid online (Razorpay) orders */}
+              {selected.isPaid && selected.razorpayPaymentId && (
                 <div className="pt-4 border-t border-gray-100">
                   <p className="text-sm font-medium text-gray-700 mb-3">Refund</p>
                   {refundSuccess ? (
