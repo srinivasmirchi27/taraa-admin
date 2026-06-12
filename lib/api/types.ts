@@ -75,7 +75,9 @@ export interface Product {
 // --- Orders ---
 
 export type OrderStatus = "processing" | "shipped" | "delivered" | "cancelled";
-export type PaymentMethod = "COD" | "online";
+// "RAZORPAY" is what the backend stores for online payments; "COD"/"online"
+// are kept for historical orders.
+export type PaymentMethod = "COD" | "online" | "RAZORPAY";
 
 export interface OrderItem {
   productId: string;
